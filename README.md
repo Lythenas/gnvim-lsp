@@ -1,5 +1,5 @@
 # GNvim LSP Plugin
 
-Plugin for nvim to provide some nice LSP functionalities between LSP and GNvim.
+Plugin for nvim to provide some nice LSP functionalities between LSP and [GNvim](https://github.com/vhakulinen/gnvim).
 
-Requires vim-lsp.
+Requires [LanguageClient-neovim](https://github.com/autozimu/LanguageClient-neovim)
