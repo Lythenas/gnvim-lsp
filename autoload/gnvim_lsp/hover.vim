@@ -3,6 +3,10 @@ let s:hover_timer = 0
 let s:hover_pos = 0
 
 function! gnvim_lsp#hover#cursor_moved()
+    if mode() != 'n'
+        return
+    endif
+
     let pos = getcurpos()
     let cur_row = l:pos[1] - 1
     let cur_col = l:pos[2] - 1
@@ -40,7 +44,7 @@ function! gnvim_lsp#hover#cursor_moved()
         call timer_stop(s:hover_timer)
     endif
 
-    let s:hover_timer = timer_start(300, function('s:timer_cb'))
+    let s:hover_timer = timer_start(3000, function('s:timer_cb'))
 endfunction
 
 function! s:timer_cb(id)
@@ -54,33 +58,47 @@ function! gnvim_lsp#hover#abort()
 endfunction
 
 function! gnvim_lsp#hover#show_hover() abort
-    let l:servers = filter(lsp#get_whitelisted_servers(), 'lsp#capabilities#has_hover_provider(v:val)')
+    " TODO
+    "let l:servers = filter(lsp#get_whitelisted_servers(), 'lsp#capabilities#has_hover_provider(v:val)')
 
-    if len(l:servers) == 0
-        return
-    endif
+    "if len(l:servers) == 0
+    "    return
+    "endif
 
-    let l:pos = lsp#get_position()
+    let l:pos = LSP#position()
     let l:screencol = screencol()
     let l:screenrow = screenrow()
 
-    for l:server in l:servers
-        call lsp#send_request(l:server, {
-            \ 'method': 'textDocument/hover',
-            \ 'params': {
-            \   'textDocument': lsp#get_text_document_identifier(),
-            \   'position': l:pos,
-            \ },
-            \ 'on_notification': function('s:handle_hover', [l:server, l:pos, l:screencol, l:screenrow]),
-            \ })
-    endfor
+    let l:params = {
+      \ 'filename': LSP#filename(),
+      \ 'position': l:pos,
+      \ 'handle': v:false,
+      \ }
+
+    function! s:callback(pos, col, row, results)
+       call s:handle_hover('', a:pos, a:col, a:row, { 'response': a:results })
+    endfunction
+
+    call LanguageClient#Call('textDocument/hover', l:params, function('s:callback', [l:pos, l:screencol, l:screenrow]))
+    "function('s:handle_hover', ['', l:pos, l:screencol, l:screenrow]))
+    "for l:server in l:servers
+    "    call lsp#send_request(l:server, {
+    "        \ 'method': 'textDocument/hover',
+    "        \ 'params': {
+    "        \   'textDocument': lsp#get_text_document_identifier(),
+    "        \   'position': l:pos,
+    "        \ },
+    "        \ 'on_notification': function('s:handle_hover', [l:server, l:pos, l:screencol, l:screenrow]),
+    "        \ })
+    "endfor
 endfunction
 
 function! s:handle_hover(server, pos, screencol, screenrow, data) abort
-    if lsp#client#is_error(a:data['response'])
-        call lsp#utils#error('Failed to retrieve hover information for ' . a:server)
-        return
-    endif
+    " echo a:data
+    "if a:data['response']
+    "    call lsp#utils#error('Failed to retrieve hover information for ' . a:server)
+    "    return
+    "endif
 
     if !has_key(a:data['response'], 'result')
         return
@@ -116,7 +134,12 @@ function! s:handle_hover(server, pos, screencol, screenrow, data) abort
 
         let l:content = s:to_string(a:data['response']['result']['contents'])
 
-        call gnvim#cursor_tooltip#show(l:content, a:screenrow - 1, max([l:pos[1] + col_offset, 0]))
+	if !empty(l:content)
+            call gnvim#cursor_tooltip#show(l:content, a:screenrow - 1, max([l:pos[1] + col_offset, 0]))
+	else
+            call gnvim#cursor_tooltip#hide()
+	endif
+
     endif
 endfunction
 
@@ -133,8 +156,7 @@ function! s:to_string(data) abort
         let l:content .= "```".a:data.language . "\n"
         let l:content .= a:data.value
         let l:content .= "\n" . "```" . "\n"
-
-    elseif type(a:data) == type({}) && has_key(a:data, 'kind')
+    elseif type(a:data) == type({}) && has_key(a:data, 'kind') && !empty(a:data.value)
         let l:content .= a:data.value . "\n"
     endif
 
